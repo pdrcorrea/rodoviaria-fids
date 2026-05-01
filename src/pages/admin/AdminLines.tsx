@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Pencil, Trash2, X, Check } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, Zap } from 'lucide-react'
 
 const DAY_LABELS: Record<DayType, string> = {
   daily: 'Todos os dias',
@@ -23,8 +23,13 @@ const DAY_LABELS: Record<DayType, string> = {
   holiday: 'Feriado',
 }
 
-const STATUS_OPTIONS: TripStatus[] = [
-  'on_time', 'boarding', 'delayed', 'departed', 'arrived', 'cancelled',
+const STATUS_OPTIONS: { value: TripStatus; label: string }[] = [
+  { value: 'on_time',   label: 'No Horário' },
+  { value: 'boarding',  label: 'Embarque Imediato' },
+  { value: 'delayed',   label: 'Atrasado' },
+  { value: 'departed',  label: 'Partiu' },
+  { value: 'arrived',   label: 'Chegou' },
+  { value: 'cancelled', label: 'Cancelado' },
 ]
 
 type TripForm = Omit<Trip, 'id'>
@@ -41,6 +46,10 @@ export default function AdminLines() {
   const [editId, setEditId]     = useState<string | null>(null)
   const [form, setForm]         = useState<TripForm>({ ...emptyForm })
   const [search, setSearch]     = useState('')
+  // quick-edit: only status + platform inline
+  const [quickEditId, setQuickEditId] = useState<string | null>(null)
+  const [qStatus, setQStatus]         = useState<TripStatus>('on_time')
+  const [qPlatform, setQPlatform]     = useState('')
 
   const filtered = trips.filter(
     (t) =>
@@ -53,6 +62,7 @@ export default function AdminLines() {
     setForm({ ...emptyForm, companyId: companies[0]?.id ?? '' })
     setEditId(null)
     setShowForm(true)
+    setQuickEditId(null)
   }
 
   const openEdit = (t: Trip) => {
@@ -60,6 +70,19 @@ export default function AdminLines() {
     setForm({ ...rest })
     setEditId(id)
     setShowForm(true)
+    setQuickEditId(null)
+  }
+
+  const openQuickEdit = (t: Trip) => {
+    setQuickEditId(t.id)
+    setQStatus(t.status)
+    setQPlatform(t.platform)
+    setShowForm(false)
+  }
+
+  const saveQuickEdit = (trip: Trip) => {
+    updateTrip({ ...trip, status: qStatus, platform: qPlatform })
+    setQuickEditId(null)
   }
 
   const toggleDay = (day: DayType) => {
@@ -102,7 +125,7 @@ export default function AdminLines() {
         />
       </div>
 
-      {/* Form */}
+      {/* Full Form */}
       {showForm && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
           <h3 className="font-semibold text-[#0a1628] mb-4">
@@ -156,7 +179,7 @@ export default function AdminLines() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -173,7 +196,6 @@ export default function AdminLines() {
             </div>
           </div>
 
-          {/* Day Types */}
           <div className="mt-4">
             <Label className="mb-2 block">Dias de Operação</Label>
             <div className="flex flex-wrap gap-2">
@@ -223,46 +245,115 @@ export default function AdminLines() {
           </thead>
           <tbody>
             {filtered.map((trip) => (
-              <tr key={trip.id} className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono font-bold text-[#0a1628]">{trip.lineNumber}</td>
-                <td className="px-4 py-3">
-                  <Badge variant={trip.type === 'departure' ? 'info' : 'success'}>
-                    {trip.type === 'departure' ? 'Partida' : 'Chegada'}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3 text-gray-700">
-                  <span className="font-medium">{trip.origin}</span>
-                  <span className="text-gray-400 mx-1">→</span>
-                  <span className="font-medium">{trip.destination}</span>
-                </td>
-                <td className="px-4 py-3 text-gray-600 text-xs">{getCompanyName(trip.companyId)}</td>
-                <td className="px-4 py-3 font-mono font-bold">{trip.scheduledTime}</td>
-                <td className="px-4 py-3 text-center">
-                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#0a1628] text-white text-xs font-bold">
-                    {trip.platform}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-1">
-                    {trip.dayTypes.map((d) => (
-                      <span key={d} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                        {DAY_LABELS[d]}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td className="px-4 py-3"><StatusBadge status={trip.status} /></td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <Button size="sm" variant="outline" onClick={() => openEdit(trip)}>
-                      <Pencil className="w-3 h-3" />
-                    </Button>
-                    <Button size="sm" variant="outline" className="text-red-500 hover:text-red-700" onClick={() => { if (confirm('Confirmar exclusão?')) deleteTrip(trip.id) }}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
+              <>
+                <tr key={trip.id} className={`border-b border-gray-100 transition-colors ${
+                  quickEditId === trip.id ? 'bg-yellow-50' : 'hover:bg-gray-50'
+                }`}>
+                  <td className="px-4 py-3 font-mono font-bold text-[#0a1628]">{trip.lineNumber}</td>
+                  <td className="px-4 py-3">
+                    <Badge variant={trip.type === 'departure' ? 'info' : 'success'}>
+                      {trip.type === 'departure' ? 'Partida' : 'Chegada'}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-gray-700">
+                    <span className="font-medium">{trip.origin}</span>
+                    <span className="text-gray-400 mx-1">→</span>
+                    <span className="font-medium">{trip.destination}</span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 text-xs">{getCompanyName(trip.companyId)}</td>
+                  <td className="px-4 py-3 font-mono font-bold">{trip.scheduledTime}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#0a1628] text-white text-xs font-bold">
+                      {trip.platform}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {trip.dayTypes.map((d) => (
+                        <span key={d} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                          {DAY_LABELS[d]}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3"><StatusBadge status={trip.status} /></td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        title="Edição rápida (status e plataforma)"
+                        className="text-yellow-600 border-yellow-300 hover:bg-yellow-50"
+                        onClick={() =>
+                          quickEditId === trip.id
+                            ? setQuickEditId(null)
+                            : openQuickEdit(trip)
+                        }
+                      >
+                        <Zap className="w-3 h-3" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => openEdit(trip)}>
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        size="sm" variant="outline"
+                        className="text-red-500 hover:text-red-700"
+                        onClick={() => { if (confirm('Confirmar exclusão?')) deleteTrip(trip.id) }}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+
+                {/* Quick-edit inline row */}
+                {quickEditId === trip.id && (
+                  <tr key={`qe-${trip.id}`} className="bg-yellow-50 border-b border-yellow-200">
+                    <td colSpan={9} className="px-4 py-3">
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <span className="text-xs font-semibold text-yellow-700 uppercase tracking-wide">Edição Rápida</span>
+
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs whitespace-nowrap">Status</Label>
+                          <Select value={qStatus} onValueChange={(v) => setQStatus(v as TripStatus)}>
+                            <SelectTrigger className="h-8 w-48 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {STATUS_OPTIONS.map((s) => (
+                                <SelectItem key={s.value} value={s.value} className="text-xs">{s.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs whitespace-nowrap">Plataforma</Label>
+                          <Input
+                            value={qPlatform}
+                            onChange={(e) => setQPlatform(e.target.value)}
+                            className="h-8 w-20 text-xs font-mono"
+                          />
+                        </div>
+
+                        <Button
+                          size="sm"
+                          className="bg-yellow-500 hover:bg-yellow-600 text-white h-8"
+                          onClick={() => saveQuickEdit(trip)}
+                        >
+                          <Check className="w-3 h-3 mr-1" /> Confirmar
+                        </Button>
+                        <Button
+                          size="sm" variant="outline" className="h-8"
+                          onClick={() => setQuickEditId(null)}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </>
             ))}
           </tbody>
         </table>

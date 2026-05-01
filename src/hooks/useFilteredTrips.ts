@@ -14,13 +14,36 @@ function getDayType(date: Date): DayType {
   return 'weekday'
 }
 
-export function useFilteredTrips(trips: Trip[], search = '', type?: 'departure' | 'arrival') {
+/** Convert "HH:MM" to total minutes since midnight */
+function toMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number)
+  return h * 60 + m
+}
+
+export function useFilteredTrips(
+  trips: Trip[],
+  search = '',
+  type?: 'departure' | 'arrival',
+) {
   return useMemo(() => {
-    const dayType = getDayType(new Date())
+    const now = new Date()
+    const dayType = getDayType(now)
+    const nowMin = now.getHours() * 60 + now.getMinutes()
+
     return trips
       .filter((t) => t.active)
       .filter((t) => t.dayTypes.includes('daily') || t.dayTypes.includes(dayType))
       .filter((t) => (type ? t.type === type : true))
+      .filter((t) => {
+        const scheduled = toMinutes(t.scheduledTime)
+        if (t.type === 'departure') {
+          // show from 30 min ago up to 60 min in the future
+          return scheduled >= nowMin - 30 && scheduled <= nowMin + 60
+        } else {
+          // arrivals: show from 30 min ago up to 60 min in the future
+          return scheduled >= nowMin - 30 && scheduled <= nowMin + 60
+        }
+      })
       .filter((t) => {
         if (!search) return true
         const q = search.toLowerCase()

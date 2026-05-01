@@ -3,28 +3,41 @@ import { useData } from '@/context/DataContext'
 import { useClock } from '@/hooks/useClock'
 import { useWeather } from '@/hooks/useWeather'
 import { useFilteredTrips } from '@/hooks/useFilteredTrips'
+import { useAnnouncements } from '@/hooks/useAnnouncements'
 import FIDSTable from '@/components/FIDSTable'
-import { Input } from '@/components/ui/input'
 import {
   Bus,
   Search,
   Maximize2,
   Minimize2,
   Thermometer,
-  Cloud,
   ArrowUpRight,
   ArrowDownLeft,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 
+function useFilteredTripsCount(
+  trips: ReturnType<typeof useData>['trips'],
+  search: string,
+  type: 'departure' | 'arrival',
+): number {
+  return useFilteredTrips(trips, search, type).length
+}
+
 export default function PublicPanel() {
-  const { trips, companies } = useData()
-  const { time, dateStr }    = useClock()
-  const weather              = useWeather()
-  const [search, setSearch]  = useState('')
-  const [tab, setTab]        = useState<'departure' | 'arrival'>('departure')
+  const { trips, companies }    = useData()
+  const { time, dateStr }       = useClock()
+  const weather                 = useWeather()
+  const [search, setSearch]     = useState('')
+  const [tab, setTab]           = useState<'departure' | 'arrival'>('departure')
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [audioEnabled, setAudioEnabled] = useState(false)
 
   const filteredTrips = useFilteredTrips(trips, search, tab)
+
+  // TTS announcements (only when user has enabled audio)
+  useAnnouncements(trips, companies, audioEnabled)
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -36,9 +49,17 @@ export default function PublicPanel() {
     }
   }, [])
 
+  const toggleAudio = () => {
+    // browsers require a user gesture before allowing speech synthesis
+    if (!audioEnabled) {
+      window.speechSynthesis?.cancel()
+    }
+    setAudioEnabled((prev) => !prev)
+  }
+
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* ── Header ───────────────────────────────────────────────────── */}
+      {/* Header */}
       <header className="bg-[#0a1628] text-white">
         <div className="max-w-screen-2xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between gap-4">
@@ -64,8 +85,8 @@ export default function PublicPanel() {
               />
             </div>
 
-            {/* Right: Clock + Weather + Fullscreen */}
-            <div className="flex items-center gap-5 flex-shrink-0">
+            {/* Clock + Weather + Controls */}
+            <div className="flex items-center gap-4 flex-shrink-0">
               {weather && (
                 <div className="flex items-center gap-1.5 text-white/80">
                   <Thermometer className="w-4 h-4" />
@@ -81,6 +102,19 @@ export default function PublicPanel() {
                 </p>
               </div>
 
+              {/* Audio toggle */}
+              <button
+                onClick={toggleAudio}
+                title={audioEnabled ? 'Desativar avisos sonoros' : 'Ativar avisos sonoros'}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                  audioEnabled
+                    ? 'bg-green-500 hover:bg-green-600 text-white'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                }`}
+              >
+                {audioEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              </button>
+
               <button
                 onClick={toggleFullscreen}
                 className="w-9 h-9 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center transition-colors"
@@ -93,7 +127,7 @@ export default function PublicPanel() {
         </div>
       </header>
 
-      {/* ── Tabs ─────────────────────────────────────────────────────── */}
+      {/* Tabs */}
       <div className="border-b border-gray-200 bg-white sticky top-0 z-10">
         <div className="max-w-screen-2xl mx-auto px-6">
           <div className="flex">
@@ -123,24 +157,18 @@ export default function PublicPanel() {
         </div>
       </div>
 
-      {/* ── Table ────────────────────────────────────────────────────── */}
+      {/* Table */}
       <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-6">
         <FIDSTable trips={filteredTrips} companies={companies} type={tab} />
       </main>
 
-      {/* ── Footer ───────────────────────────────────────────────────── */}
+      {/* Footer */}
       <footer className="bg-gray-50 border-t border-gray-200 py-3 px-6 text-center text-xs text-gray-400">
         Rodoviária de Vila Velha — Sistema FIDS © {new Date().getFullYear()}
+        {audioEnabled && (
+          <span className="ml-3 text-green-600 font-semibold">● Avisos sonoros ativos</span>
+        )}
       </footer>
     </div>
   )
-}
-
-// Helper to compute tab counts without hook duplication
-function useFilteredTripsCount(
-  trips: ReturnType<typeof useData>['trips'],
-  search: string,
-  type: 'departure' | 'arrival'
-): number {
-  return useFilteredTrips(trips, search, type).length
 }
