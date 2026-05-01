@@ -31,7 +31,7 @@ export interface Trip {
   companyId: string
   origin: string
   destination: string
-  scheduledTime: string   // "HH:MM"
+  scheduledTime: string
   platform: string
   type: TripType
   status: TripStatus

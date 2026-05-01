@@ -7,6 +7,7 @@ import AdminDashboard from '@/pages/admin/AdminDashboard'
 import AdminUsers from '@/pages/admin/AdminUsers'
 import AdminLines from '@/pages/admin/AdminLines'
 import PublicPanel from '@/pages/PublicPanel'
+import OperatorPage from '@/pages/OperatorPage'
 import ProtectedRoute from '@/components/ProtectedRoute'
 
 export default function App() {
@@ -16,6 +17,14 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/painel" element={<PublicPanel />} />
+          <Route
+            path="/operador"
+            element={
+              <ProtectedRoute>
+                <OperatorPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/admin"
             element={
